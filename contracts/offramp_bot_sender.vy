@@ -1,21 +1,10 @@
 #pragma version 0.3.10
 
 """
-@title Offramp Bot
+@title Offramp Bot Sender
 @license Apache 2.0
 @author Volume.finance
 """
-
-struct Deposit:
-    depositor: address
-    route: address[9]
-    swap_params: uint256[3][4]
-    pools: address[4]
-    input_amount: uint256
-    number_trades: uint256
-    interval: uint256
-    remaining_counts: uint256
-    starting_time: uint256
 
 struct SwapInfo:
     route: address[9]
@@ -62,15 +51,6 @@ event Deposited:
     deposit_id: uint256
     input_amount: uint256
     depositor: address
-
-event Swapped:
-    deposit_id: uint256
-    remaining_counts: uint256
-    amount: uint256
-    out_amount: uint256
-
-event Canceled:
-    deposit_id: uint256
 
 event UpdateCompass:
     old_compass: address
@@ -174,6 +154,9 @@ def deposit(swap_infos: DynArray[SwapInfo, MAX_SIZE]):
             assert _value >= swap_info.amount, "Insufficient deposit"
             _value = unsafe_sub(_value, swap_info.amount)
             out_amount = CurveSwapRouter(ROUTER).exchange_multiple(swap_info.route, swap_info.swap_params, swap_info.amount, swap_info.expected, swap_info.pools, self, value=swap_info.amount)
+        elif swap_info.route[0] == DAI:
+            self._safe_transfer_from(DAI, msg.sender, self, swap_info.amount)
+            out_amount = swap_info.amount
         else:
             self._safe_transfer_from(swap_info.route[0], msg.sender, self, swap_info.amount)
             self._safe_approve(swap_info.route[0], ROUTER, swap_info.amount)
