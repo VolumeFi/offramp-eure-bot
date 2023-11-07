@@ -1,1 +1,5 @@
 name: offramp_bot
+geth:
+  gnosis:
+    mainnet:
+      uri: https://rpc.gnosischain.com/
