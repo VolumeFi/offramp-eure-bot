@@ -18,19 +18,16 @@ interface WrappedEth:
     def deposit(): payable
 
 interface CurveSwapRouter:
-    def exchange_multiple(
+    def exchange(
         _route: address[11],
         _swap_params: uint256[5][5],
         _amount: uint256,
         _expected: uint256,
-        _pools: address[5],
-        _receiver: address
+        _pools: address[5]
     ) -> uint256: payable
 
 interface ERC20:
-    def balanceOf(_owner: address) -> uint256: view
     def approve(_spender: address, _value: uint256) -> bool: nonpayable
-    def transfer(_to: address, _value: uint256) -> bool: nonpayable
     def transferFrom(_from: address, _to: address, _value: uint256) -> bool: nonpayable
 
 interface DaiBridge:
@@ -41,10 +38,8 @@ DAI: immutable(address)
 BRIDGE: immutable(address)
 ROUTER: immutable(address)
 MAX_SIZE: constant(uint256) = 8
-DENOMINATOR: constant(uint256) = 10000
 OPPOSITE: public(immutable(address))
 next_deposit: public(uint256)
-paloma: public(bytes32)
 
 event Deposited:
     deposit_id: uint256
@@ -83,14 +78,14 @@ def deposit(swap_infos: DynArray[SwapInfo, MAX_SIZE]):
         if swap_info.route[0] == VETH:
             assert _value >= swap_info.amount, "Insuf deposit"
             _value = unsafe_sub(_value, swap_info.amount)
-            out_amount = CurveSwapRouter(ROUTER).exchange_multiple(swap_info.route, swap_info.swap_params, swap_info.amount, swap_info.expected, swap_info.pools, self, value=swap_info.amount)
+            out_amount = CurveSwapRouter(ROUTER).exchange(swap_info.route, swap_info.swap_params, swap_info.amount, swap_info.expected, swap_info.pools, value=swap_info.amount)
         elif swap_info.route[0] == DAI:
             assert ERC20(DAI).transferFrom(msg.sender, self, swap_info.amount, default_return_value=True), "TF fail"
             out_amount = swap_info.amount
         else:
             assert ERC20(swap_info.route[0]).transferFrom(msg.sender, self, swap_info.amount, default_return_value=True), "TF fail"
             assert ERC20(swap_info.route[0]).approve(ROUTER, swap_info.amount, default_return_value=True), "Ap fail"
-            out_amount = CurveSwapRouter(ROUTER).exchange_multiple(swap_info.route, swap_info.swap_params, swap_info.amount, swap_info.expected, swap_info.pools, self)
+            out_amount = CurveSwapRouter(ROUTER).exchange(swap_info.route, swap_info.swap_params, swap_info.amount, swap_info.expected, swap_info.pools)
         dai_amount += out_amount
         log Deposited(_next_deposit, swap_info.route[0], swap_info.amount, out_amount, msg.sender)
     assert dai_amount > 0, "Insuf deposit"
