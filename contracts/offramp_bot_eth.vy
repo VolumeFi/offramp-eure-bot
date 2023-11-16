@@ -68,8 +68,8 @@ def deposit(swap_infos: DynArray[SwapInfo, MAX_SIZE]):
     dai_amount: uint256 = 0
     for swap_info in swap_infos:
         last_index: uint256 = 0
-        for i in range(4):
-            last_index = 8 - i * 2
+        for i in range(6):
+            last_index = unsafe_sub(10, unsafe_add(i, i))
             if swap_info.route[last_index] != empty(address):
                 break
         assert swap_info.route[last_index] == DAI
