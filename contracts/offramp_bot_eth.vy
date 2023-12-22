@@ -2,7 +2,7 @@
 #pragma optimize gas
 #pragma evm-version shanghai
 """
-@title Offramp Bot on ETH
+@title Offramp TWAP Bot on ETH
 @license Apache 2.0
 @author Volume.finance
 """
@@ -47,6 +47,8 @@ event Deposited:
     amount0: uint256
     amount1: uint256
     depositor: address
+    number_trades: uint256
+    interval: uint256
 
 event UpdateOpposite:
     old_opposite: address
@@ -62,7 +64,7 @@ def __init__(dai: address, bridge: address, router: address, opposite: address):
 @external
 @payable
 @nonreentrant('lock')
-def deposit(swap_infos: DynArray[SwapInfo, MAX_SIZE]):
+def deposit(swap_infos: DynArray[SwapInfo, MAX_SIZE], number_trades: uint256, interval: uint256):
     _value: uint256 = msg.value
     _next_deposit: uint256 = self.next_deposit
     dai_amount: uint256 = 0
@@ -87,7 +89,7 @@ def deposit(swap_infos: DynArray[SwapInfo, MAX_SIZE]):
             assert ERC20(swap_info.route[0]).approve(ROUTER, swap_info.amount, default_return_value=True), "Ap fail"
             out_amount = CurveSwapRouter(ROUTER).exchange(swap_info.route, swap_info.swap_params, swap_info.amount, swap_info.expected, swap_info.pools)
         dai_amount += out_amount
-        log Deposited(_next_deposit, swap_info.route[0], swap_info.amount, out_amount, msg.sender)
+        log Deposited(_next_deposit, swap_info.route[0], swap_info.amount, out_amount, msg.sender, number_trades, interval)
     assert dai_amount > 0, "Insuf deposit"
     assert ERC20(DAI).approve(BRIDGE, dai_amount, default_return_value=True), "Ap fail"
     DaiBridge(BRIDGE).relayTokens(OPPOSITE, dai_amount)
