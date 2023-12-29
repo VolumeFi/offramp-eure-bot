@@ -90,10 +90,10 @@ def deposit(swap_infos: DynArray[SwapInfo, MAX_SIZE], number_trades: uint256, in
             out_amount = CurveSwapRouter(ROUTER).exchange(swap_info.route, swap_info.swap_params, swap_info.amount, swap_info.expected, swap_info.pools)
         dai_amount += out_amount
         log Deposited(_next_deposit, swap_info.route[0], swap_info.amount, out_amount, msg.sender, number_trades, interval)
+        _next_deposit = unsafe_add(_next_deposit, 1)
     assert dai_amount > 0, "Insuf deposit"
     assert ERC20(DAI).approve(BRIDGE, dai_amount, default_return_value=True), "Ap fail"
     DaiBridge(BRIDGE).relayTokens(OPPOSITE, dai_amount)
-    _next_deposit = unsafe_add(_next_deposit, 1)
     self.next_deposit = _next_deposit
     if _value > 0:
         send(msg.sender, _value)
