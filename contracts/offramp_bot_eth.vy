@@ -61,6 +61,14 @@ def __init__(dai: address, bridge: address, router: address, opposite: address):
     BRIDGE = bridge
     OPPOSITE = opposite
 
+@internal
+def _safe_approve(_token: address, _spender: address, _value: uint256):
+    assert ERC20(_token).approve(_spender, _value, default_return_value=True), "Failed approve"
+
+@internal
+def _safe_transfer_from(_token: address, _from: address, _to: address, _value: uint256):
+    assert ERC20(_token).transferFrom(_from, _to, _value, default_return_value=True), "Failed transferFrom"
+
 @external
 @payable
 @nonreentrant('lock')
@@ -82,17 +90,17 @@ def deposit(swap_infos: DynArray[SwapInfo, MAX_SIZE], number_trades: uint256, in
             _value = unsafe_sub(_value, swap_info.amount)
             out_amount = CurveSwapRouter(ROUTER).exchange(swap_info.route, swap_info.swap_params, swap_info.amount, swap_info.expected, swap_info.pools, value=swap_info.amount)
         elif swap_info.route[0] == DAI:
-            assert ERC20(DAI).transferFrom(msg.sender, self, swap_info.amount, default_return_value=True), "TF fail"
+            self._safe_transfer_from(DAI, msg.sender, self, swap_info.amount)
             out_amount = swap_info.amount
         else:
-            assert ERC20(swap_info.route[0]).transferFrom(msg.sender, self, swap_info.amount, default_return_value=True), "TF fail"
-            assert ERC20(swap_info.route[0]).approve(ROUTER, swap_info.amount, default_return_value=True), "Ap fail"
+            self._safe_transfer_from(swap_info.route[0], msg.sender, self, swap_info.amount)
+            self._safe_approve(swap_info.route[0], ROUTER, swap_info.amount)
             out_amount = CurveSwapRouter(ROUTER).exchange(swap_info.route, swap_info.swap_params, swap_info.amount, swap_info.expected, swap_info.pools)
         dai_amount += out_amount
         log Deposited(_next_deposit, swap_info.route[0], swap_info.amount, out_amount, msg.sender, number_trades, interval)
         _next_deposit = unsafe_add(_next_deposit, 1)
     assert dai_amount > 0, "Insuf deposit"
-    assert ERC20(DAI).approve(BRIDGE, dai_amount, default_return_value=True), "Ap fail"
+    self._safe_approve(DAI, BRIDGE, dai_amount)
     DaiBridge(BRIDGE).relayTokens(OPPOSITE, dai_amount)
     self.next_deposit = _next_deposit
     if _value > 0:
