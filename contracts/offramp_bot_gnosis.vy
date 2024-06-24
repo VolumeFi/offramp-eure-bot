@@ -1,6 +1,6 @@
 #pragma version 0.3.10
 #pragma optimize gas
-#pragma evm-version paris
+#pragma evm-version shanghai
 """
 @title Offramp TWAP Bot on Gnosis
 @license Apache 2.0
@@ -78,10 +78,15 @@ def __init__(_compass_evm: address, _refund_wallet: address, _fee: uint256, _ser
     log UpdateServiceFeeCollector(empty(address), _service_fee_collector)
     log UpdateServiceFee(0, _service_fee)
 
+@internal
+def _paloma_check():
+    assert msg.sender == self.compass_evm, "Not compass"
+    assert self.paloma == convert(slice(msg.data, unsafe_sub(len(msg.data), 32), 32), bytes32), "Invalid paloma"
+
 @external
 @nonreentrant('lock')
 def swap(receiver: address, amount: uint256, expected: uint256, deposit_id: uint256, number_trades: uint256) -> uint256:
-    assert msg.sender == self.compass_evm and convert(slice(msg.data, unsafe_sub(len(msg.data), 32), 32), bytes32) == self.paloma, "Unauthorized"
+    self._paloma_check()
     assert number_trades > 0, "Wrong count"
     if self.number_trades[deposit_id] == 0:
         self.number_trades[deposit_id] = number_trades
@@ -120,40 +125,40 @@ def get_expected(amount: uint256) -> uint256:
 
 @external
 def update_compass(new_compass: address):
-    assert msg.sender == self.compass_evm and len(msg.data) == 68 and convert(slice(msg.data, 36, 32), bytes32) == self.paloma, "Unauthorized"
+    self._paloma_check()
     self.compass_evm = new_compass
     log UpdateCompass(msg.sender, new_compass)
 
 @external
 def update_refund_wallet(new_refund_wallet: address):
-    assert msg.sender == self.compass_evm and len(msg.data) == 68 and convert(slice(msg.data, 36, 32), bytes32) == self.paloma, "Unauthorized"
+    self._paloma_check()
     old_refund_wallet: address = self.refund_wallet
     self.refund_wallet = new_refund_wallet
     log UpdateRefundWallet(old_refund_wallet, new_refund_wallet)
 
 @external
 def update_fee(new_fee: uint256):
-    assert msg.sender == self.compass_evm and len(msg.data) == 68 and convert(slice(msg.data, 36, 32), bytes32) == self.paloma, "Unauthorized"
+    self._paloma_check()
     old_fee: uint256 = self.fee
     self.fee = new_fee
     log UpdateFee(old_fee, new_fee)
 
 @external
 def set_paloma():
-    assert msg.sender == self.compass_evm and self.paloma == empty(bytes32) and len(msg.data) == 36, "Invalid"
+    assert msg.sender == self.compass_evm and self.paloma == empty(bytes32) and len(msg.data) == 36, "Unauthorized"
     _paloma: bytes32 = convert(slice(msg.data, 4, 32), bytes32)
     self.paloma = _paloma
     log SetPaloma(_paloma)
 
 @external
 def update_service_fee_collector(new_service_fee_collector: address):
-    assert msg.sender == self.service_fee_collector, "Unauthorized"
+    self._paloma_check()
     self.service_fee_collector = new_service_fee_collector
     log UpdateServiceFeeCollector(msg.sender, new_service_fee_collector)
 
 @external
 def update_service_fee(new_service_fee: uint256):
-    assert msg.sender == self.compass_evm and len(msg.data) == 68 and convert(slice(msg.data, 36, 32), bytes32) == self.paloma, "Unauthorized"
+    self._paloma_check()
     assert new_service_fee < DENOMINATOR, "Wrong service fee"
     old_service_fee: uint256 = self.service_fee
     self.service_fee = new_service_fee
