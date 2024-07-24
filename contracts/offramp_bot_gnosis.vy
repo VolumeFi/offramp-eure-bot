@@ -97,6 +97,7 @@ def swap(receiver: address, amount: uint256, expected: uint256, deposit_id: uint
     _fee: uint256 = self.fee
     if amount <= _fee:
         send(self.refund_wallet, amount)
+        log Swapped(receiver, 0, deposit_id, number_trades)
         return 0
     else:
         send(self.refund_wallet, _fee)
