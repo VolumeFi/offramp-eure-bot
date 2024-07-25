@@ -122,7 +122,11 @@ def get_expected(amount: uint256) -> uint256:
     if amount <= _fee:
         return 0
     else:
-        return CurveSwapRouter(ROUTER).get_dy(ROUTE, SWAP_PARAMS, unsafe_sub(amount, _fee), POOLS)
+        _amount: uint256 = unsafe_sub(amount, _fee)
+        _service_fee: uint256 = self.service_fee
+        if _service_fee > 0:
+            _amount = unsafe_sub(_amount, unsafe_div(_amount * _service_fee, DENOMINATOR))
+        return CurveSwapRouter(ROUTER).get_dy(ROUTE, SWAP_PARAMS, _amount, POOLS)
 
 @external
 def update_compass(new_compass: address):
