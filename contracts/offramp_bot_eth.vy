@@ -14,9 +14,6 @@ struct SwapInfo:
     expected: uint256
     pools: address[5]
 
-interface WrappedEth:
-    def deposit(): payable
-
 interface CurveSwapRouter:
     def exchange(
         _route: address[11],
@@ -49,10 +46,6 @@ event Deposited:
     depositor: address
     number_trades: uint256
     interval: uint256
-
-event UpdateOpposite:
-    old_opposite: address
-    new_opposite: address
 
 @external
 def __init__(dai: address, bridge: address, router: address, opposite: address):
