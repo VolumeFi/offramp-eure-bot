@@ -1,6 +1,6 @@
-#pragma version 0.3.10
+#pragma version 0.4.0
 #pragma optimize gas
-#pragma evm-version shanghai
+#pragma evm-version cancun
 """
 @title Offramp TWAP Bot on Gnosis
 @license Apache 2.0
@@ -17,7 +17,7 @@ interface ERC20:
     def approve(guy: address, wad: uint256): nonpayable
 
 WXDAI: constant(address) = 0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d
-ROUTER: constant(address) = 0xF0d4c12A5768D806021F80a262B4d39d26C58b8D
+ROUTER: constant(address) = 0x0DCDED3545D565bA3B19E683431381007245d983
 ROUTE: constant(address[11]) = [0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d, 0xE3FFF29d4DC930EBb787FeCd49Ee5963DADf60b6, 0xcB444e90D8198415266c6a2724b7900fb12FC56E, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000]
 SWAP_PARAMS: constant(uint256[5][5]) = [[1, 0, 2, 2, 4], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]
 POOLS: constant(address[5]) = [0x056C6C5e684CeC248635eD86033378Cc444459B0, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000]
@@ -64,7 +64,7 @@ event UpdateServiceFee:
     old_service_fee: uint256
     new_service_fee: uint256
 
-@external
+@deploy
 def __init__(_compass_evm: address, _refund_wallet: address, _fee: uint256, _service_fee_collector: address, _service_fee: uint256):
     self.compass_evm = _compass_evm
     self.refund_wallet = _refund_wallet
@@ -84,10 +84,11 @@ def _paloma_check():
     assert self.paloma == convert(slice(msg.data, unsafe_sub(len(msg.data), 32), 32), bytes32), "Invalid paloma"
 
 @external
-@nonreentrant('lock')
+@nonreentrant
 def swap(receiver: address, amount: uint256, expected: uint256, deposit_id: uint256, number_trades: uint256) -> uint256:
     self._paloma_check()
     assert number_trades > 0, "Wrong count"
+    assert amount > 0, "Wrong amount"
     if self.number_trades[deposit_id] == 0:
         self.number_trades[deposit_id] = number_trades
         self.remaining_counts[deposit_id] = unsafe_sub(number_trades, 1)
@@ -100,8 +101,10 @@ def swap(receiver: address, amount: uint256, expected: uint256, deposit_id: uint
         log Swapped(receiver, 0, deposit_id, number_trades)
         return 0
     else:
-        send(self.refund_wallet, _fee)
-        _amount: uint256 = unsafe_sub(amount, _fee)
+        _amount: uint256 = amount
+        if _fee > 0:
+            send(self.refund_wallet, _fee)
+            _amount = unsafe_sub(amount, _fee)
         service_fee: uint256 = self.service_fee
         service_fee_amount: uint256 = 0
         if service_fee > 0:
@@ -109,9 +112,9 @@ def swap(receiver: address, amount: uint256, expected: uint256, deposit_id: uint
             if service_fee_amount > 0:
                 send(self.service_fee_collector, service_fee_amount)
                 _amount = unsafe_sub(_amount, service_fee_amount)
-        WxDAI(WXDAI).deposit(value=_amount)
-        ERC20(WXDAI).approve(ROUTER, _amount)
-        ret: uint256 = CurveSwapRouter(ROUTER).exchange(ROUTE, SWAP_PARAMS, _amount, expected, POOLS, receiver)
+        extcall WxDAI(WXDAI).deposit(value=_amount)
+        extcall ERC20(WXDAI).approve(ROUTER, _amount)
+        ret: uint256 = extcall CurveSwapRouter(ROUTER).exchange(ROUTE, SWAP_PARAMS, _amount, expected, POOLS, receiver)
         log Swapped(receiver, _amount, deposit_id, number_trades)
         return ret
 
@@ -126,7 +129,7 @@ def get_expected(amount: uint256) -> uint256:
         _service_fee: uint256 = self.service_fee
         if _service_fee > 0:
             _amount = unsafe_sub(_amount, unsafe_div(_amount * _service_fee, DENOMINATOR))
-        return CurveSwapRouter(ROUTER).get_dy(ROUTE, SWAP_PARAMS, _amount, POOLS)
+        return staticcall CurveSwapRouter(ROUTER).get_dy(ROUTE, SWAP_PARAMS, _amount, POOLS)
 
 @external
 def update_compass(new_compass: address):
